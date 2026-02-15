@@ -14,7 +14,7 @@ pub struct RingId(u64);
 
 impl RingId {
     pub fn new() -> RingId {
-        let mut rng = rand::rng();
+        // let mut rng = rand::rng();
         // let id = rng.random();
         RingId(1)
     }
@@ -65,6 +65,7 @@ pub enum InternalMessage {
         data: Vec<u8>,
         tx: oneshot::Sender<()>,
     },
+    Leave,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
