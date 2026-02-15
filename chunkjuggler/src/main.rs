@@ -298,7 +298,7 @@ async fn chunk_catcher(
     // as JSON into a `CreateUser` type
     Json(message): Json<Message>,
 ) -> StatusCode {
-    info!(?message, "recieved message");
+    // info!(?message, "recieved message");
     let Some(ring_meta) = ROUTER.get(&message.ring_id).map(|v| v.clone()) else {
         error!("unknown ring id: {:?}", message.ring_id);
         return StatusCode::NOT_FOUND;
