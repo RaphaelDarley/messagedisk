@@ -71,7 +71,7 @@ static int bm_pread(void *handle, void *buf, uint32_t count, uint64_t offset, ui
 
     while(countRemaining > 0){
         /* Make a request for a block. */
-        CURLcode* result;
+        CURLcode result;
         CURL* req = curl_easy_init();
 
         curl_easy_setopt(req, CURLOPT_URL, readUrl);
@@ -163,7 +163,7 @@ static int bm_pwrite(void *handle, const void *buf, uint32_t count, uint64_t off
         bm_pread(NULL, &block, BLOCK_SIZE, chunkId * BLOCK_SIZE, 0);
 
         /* Make a request to write a block. */
-        CURLcode* result;
+        CURLcode result;
         CURL* req = curl_easy_init();
 
         curl_easy_setopt(req, CURLOPT_URL, readUrl);
