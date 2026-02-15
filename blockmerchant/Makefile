@@ -1,5 +1,7 @@
+CXXFLAGS=-Wall -Werror -O -I nbdkit/include -I nbdkit/common/include -I nbdkit/common/allocators -I nbdkit/common/utils -fPIC -DPSS_STYLE=2 -shared
+
 main:
-	$(CC) $(wildcard src/*.c) $(wildcard src/test/*.c) -o bin/blockmerchant -I include -L lib
+	$(CC) $(wildcard src/*.c) -o bin/blockmerchant.so -I include -L lib $(CXXFLAGS)
 
 all: main
 
