@@ -81,3 +81,11 @@ pub async fn join_handler(Json(message): Json<JoinMessage>) -> StatusCode {
 
     StatusCode::OK
 }
+
+pub async fn shutdown_handler() -> StatusCode {
+    for e in ROUTER.iter() {
+        let meta = e.value();
+        let _ = meta.tx.send(crate::message::InternalMessage::Leave);
+    }
+    StatusCode::OK
+}

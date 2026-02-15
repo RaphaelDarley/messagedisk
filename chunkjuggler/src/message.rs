@@ -65,6 +65,7 @@ pub enum InternalMessage {
         data: Vec<u8>,
         tx: oneshot::Sender<()>,
     },
+    Leave,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

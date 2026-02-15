@@ -33,7 +33,7 @@ use tracing::{error, info, warn};
 
 use crate::{
     fd::set_fd_limit,
-    handlers::{discover_handler, join_handler, start_handler},
+    handlers::{discover_handler, join_handler, shutdown_handler, start_handler},
     message::{Addr, CHUNK_SIZE, InternalMessage, Message, MessagePayload, RingId},
 };
 
@@ -86,7 +86,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/write", post(write_handler))
         .route("/discover", get(discover_handler))
         .route("/join", post(join_handler))
-        .route("/start", post(start_handler));
+        .route("/start", post(start_handler))
+        .route("/shutdown", post(shutdown_handler));
 
     // run our app with hyper, listening globally on port 3000
     let listener = tokio::net::TcpListener::bind(MEEEE.get().unwrap().into_std())
@@ -182,6 +183,22 @@ async fn chunk_thrower(
                     .entry(chunk_id)
                     .or_default()
                     .push(PendingOp::Write { data, tx });
+            }
+            InternalMessage::Leave => {
+                CLIENT
+                    .post(target.into_url())
+                    .json(&Message {
+                        ring_id: ring_id.clone(),
+                        payload: MessagePayload::Switch {
+                            old: MEEEE.get().unwrap().clone(),
+                            new: target.clone(),
+                        },
+                    })
+                    .send()
+                    .await
+                    .unwrap()
+                    .error_for_status()
+                    .unwrap();
             }
         }
     }
