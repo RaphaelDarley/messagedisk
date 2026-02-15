@@ -14,7 +14,7 @@ pub struct RingId(u64);
 
 impl RingId {
     pub fn new() -> RingId {
-        let mut rng = rand::rng();
+        // let mut rng = rand::rng();
         // let id = rng.random();
         RingId(1)
     }

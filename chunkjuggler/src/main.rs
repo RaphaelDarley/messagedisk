@@ -1,8 +1,11 @@
 pub mod fd;
+pub mod handlers;
 pub mod message;
+pub mod ring;
 
 use std::{
     collections::HashMap,
+    env,
     hash::Hash,
     net::{Ipv4Addr, SocketAddrV4},
     str::FromStr,
@@ -10,7 +13,11 @@ use std::{
     time::Duration,
 };
 
-use axum::{Json, Router, http::StatusCode, routing::post};
+use axum::{
+    Json, Router,
+    http::StatusCode,
+    routing::{get, post},
+};
 use dashmap::DashMap;
 use libc::send;
 use reqwest::Client;
@@ -18,16 +25,15 @@ use serde::Deserialize;
 use tokio::{
     net::TcpListener,
     sync::{
-        RwLock,
-        mpsc::{self, UnboundedReceiver, UnboundedSender},
+        mpsc::{UnboundedReceiver, UnboundedSender},
         oneshot,
     },
-    time::sleep,
 };
 use tracing::{error, info, warn};
 
 use crate::{
     fd::set_fd_limit,
+    handlers::{discover_handler, join_handler, start_handler},
     message::{Addr, CHUNK_SIZE, InternalMessage, Message, MessagePayload, RingId},
 };
 
@@ -38,6 +44,7 @@ use crate::{
 pub struct RingMeta {
     // addr: Addr,
     tx: UnboundedSender<InternalMessage>, // pending_ops:
+    chunk_num: u64,
 }
 
 pub static ROUTER: LazyLock<DashMap<RingId, RingMeta>> = LazyLock::new(DashMap::new);
@@ -58,40 +65,34 @@ pub static MEEEE: OnceLock<Addr> = OnceLock::new();
 async fn main() -> anyhow::Result<()> {
     // initialize tracing
     tracing_subscriber::fmt::init();
-    MEEEE
-        .set(SocketAddrV4::new(Ipv4Addr::from_str("127.0.0.1").unwrap(), 6767).into())
+
+    let me: SocketAddrV4 = env::var("CHUNKJUGGLER_ADDR")
+        .unwrap_or("127.0.0.1:6767".to_string())
+        .parse()
         .unwrap();
+
+    MEEEE.set(me.into()).unwrap();
+
+    info!("Chunk Juggler running on: {me:?}");
 
     set_fd_limit();
 
-    let ring_id = create_ring();
+    // let ring_id = create_ring();
 
     // build our application with a route
     let app = Router::new()
         .route("/", post(chunk_catcher))
         .route("/read", post(read_handler))
-        .route("/write", post(write_handler));
+        .route("/write", post(write_handler))
+        .route("/discover", get(discover_handler))
+        .route("/join", post(join_handler))
+        .route("/start", post(start_handler));
 
     // run our app with hyper, listening globally on port 3000
     let listener = tokio::net::TcpListener::bind(MEEEE.get().unwrap().into_std())
         .await
         .unwrap();
-    // tokio::spawn(async {
-    //     // sleep(Duration::from_secs(1));
-    //     tokio::time::sleep(Duration::from_secs(1)).await;
-    //     CLIENT
-    //         .post(MEEEE.get().unwrap().into_url())
-    //         .json(&Message {
-    //             ring_id,
-    //             payload: MessagePayload::Chunk {
-    //                 id: 1,
-    //                 data: vec![0x4D],
-    //             },
-    //         })
-    //         .send()
-    //         .await
-    //         .unwrap();
-    // });
+
     axum::serve(listener, app).await?;
     Ok(())
 }
@@ -104,11 +105,15 @@ pub enum PendingOp {
     },
 }
 
-async fn chunk_thrower(ring_id: RingId, mut rx: UnboundedReceiver<InternalMessage>) {
+async fn chunk_thrower(
+    ring_id: RingId,
+    mut rx: UnboundedReceiver<InternalMessage>,
+    target: Addr,
+    chunk_num: u64,
+) {
     info!("Chunk thrower started for ring: {ring_id:?}");
-    let mut target = MEEEE.get().unwrap().clone();
+    let mut target = target;
     let mut pending: HashMap<u64, Vec<PendingOp>> = HashMap::new();
-    let mut chunk_num = 0;
 
     while let Some(imsg) = rx.recv().await {
         match imsg {
@@ -173,24 +178,6 @@ async fn chunk_thrower(ring_id: RingId, mut rx: UnboundedReceiver<InternalMessag
                 }
             }
             InternalMessage::Write { chunk_id, data, tx } => {
-                while chunk_id >= chunk_num {
-                    CLIENT
-                        .post(target.into_url())
-                        .json(&Message {
-                            ring_id: ring_id.clone(),
-                            payload: MessagePayload::Chunk {
-                                id: chunk_num,
-                                data: vec![0; CHUNK_SIZE],
-                            },
-                        })
-                        .send()
-                        .await
-                        .unwrap()
-                        .error_for_status()
-                        .unwrap();
-
-                    chunk_num += 1;
-                }
                 pending
                     .entry(chunk_id)
                     .or_default()
@@ -213,25 +200,6 @@ async fn chunk_thrower(ring_id: RingId, mut rx: UnboundedReceiver<InternalMessag
     // };
 }
 
-fn create_ring() -> RingId {
-    let ring_id = RingId::new();
-    let (tx, rx) = mpsc::unbounded_channel::<InternalMessage>();
-
-    tokio::spawn(chunk_thrower(ring_id.clone(), rx));
-
-    ROUTER.insert(
-        ring_id.clone(),
-        RingMeta {
-            // addr: MEEEE.get().unwrap().clone(),
-            tx,
-        },
-    );
-
-    info!("Created Ring: {:?}", ring_id);
-
-    ring_id
-}
-
 #[derive(Deserialize)]
 pub struct ReadMessage {
     ring_id: RingId,
@@ -246,10 +214,17 @@ async fn read_handler(Json(message): Json<ReadMessage>) -> (StatusCode, Vec<u8>)
         return (StatusCode::NOT_FOUND, vec![]);
     };
 
-    ring_meta.tx.send(InternalMessage::Read {
-        chunk_id: message.chunk_id,
-        tx: otx,
-    });
+    if message.chunk_id >= ring_meta.chunk_num {
+        return (StatusCode::BAD_GATEWAY, vec![]);
+    }
+
+    ring_meta
+        .tx
+        .send(InternalMessage::Read {
+            chunk_id: message.chunk_id,
+            tx: otx,
+        })
+        .unwrap();
 
     if let Ok(data) = orx.await {
         (StatusCode::OK, data)
@@ -276,6 +251,10 @@ async fn write_handler(Json(message): Json<WriteMessage>) -> StatusCode {
         error!("unknown ring id: {:?}", message.ring_id);
         return StatusCode::NOT_FOUND;
     };
+
+    if message.chunk_id >= ring_meta.chunk_num {
+        return StatusCode::BAD_REQUEST;
+    }
 
     ring_meta
         .tx
