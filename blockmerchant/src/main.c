@@ -87,7 +87,7 @@ static int bm_pread(void *handle, void *buf, uint32_t count, uint64_t offset, ui
         char chunk[512];
 
         CurlWrite writeData;
-        writeData.buffer = &chunk;
+        writeData.buffer = chunk;
 
         curl_easy_setopt(req, CURLOPT_WRITEFUNCTION, on_curl_write);
         curl_easy_setopt(req, CURLOPT_WRITEDATA, &writeData);
@@ -103,7 +103,7 @@ static int bm_pread(void *handle, void *buf, uint32_t count, uint64_t offset, ui
 
         /* Transpose the data. */
         int amountToCopy = (countRemaining > (BLOCK_SIZE - chunkOffset)) ? (BLOCK_SIZE - chunkOffset) : countRemaining;
-        memcpy(buf + currentPoint, &chunk, amountToCopy);
+        memcpy(buf + currentPoint, chunk, amountToCopy);
 
         currentPoint += amountToCopy;
         countRemaining -= amountToCopy;
@@ -160,7 +160,7 @@ static int bm_pwrite(void *handle, const void *buf, uint32_t count, uint64_t off
     while(countRemaining > 0){
         /* Get the current block. */
         char block[BLOCK_SIZE];
-        bm_pread(NULL, &block, BLOCK_SIZE, chunkId * BLOCK_SIZE, 0);
+        bm_pread(NULL, block, BLOCK_SIZE, chunkId * BLOCK_SIZE, 0);
 
         /* Make a request to write a block. */
         CURLcode result;
@@ -169,7 +169,7 @@ static int bm_pwrite(void *handle, const void *buf, uint32_t count, uint64_t off
         curl_easy_setopt(req, CURLOPT_URL, readUrl);
 
         /* Make our JSON packet. */
-        char* msg = createWriteMsg(RING_ID, chunkId, &block);
+        char* msg = createWriteMsg(RING_ID, chunkId, block);
 
         curl_easy_setopt(req, CURLOPT_POSTFIELDS, msg);
 
