@@ -32,7 +32,7 @@ int loc;
 static void* bm_open(int read_only){
     /* To be completed. */
     if(init_done == 0){
-        CURLcode* result = curl_global_init(CURL_GLOBAL_ALL);
+        CURLcode result = curl_global_init(CURL_GLOBAL_ALL);
         assert(result == 0);
 
         init_done = 1;
