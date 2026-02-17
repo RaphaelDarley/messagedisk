@@ -40,40 +40,39 @@ static void* bm_open(int read_only){
         CURLcode result = curl_global_init(CURL_GLOBAL_ALL);
         assert(result == 0);
 
+        /* Send the request to start the ring. */
+        CURL* req = curl_easy_init();
+
+        curl_easy_setopt(req, CURLOPT_URL, startUrl);
+
+        /* Make our JSON packet. */
+        int msgSize = snprintf(NULL, 0, "{\"ring_id\": %llu, \"target\": \"%s\", \"chunk_num\": %d}", (uint64_t)RING_ID, target, BLOCK_COUNT);
+        char* msg = malloc(msgSize);
+        sprintf(msg, "{\"ring_id\": %llu, \"target\": \"%s\", \"chunk_num\": %d}", (uint64_t)RING_ID, target, BLOCK_COUNT);
+
+        curl_easy_setopt(req, CURLOPT_POSTFIELDS, msg);
+
+        /* Set the MIME type. */
+        struct curl_slist* headers = curl_slist_append(NULL, "Content-Type: application/json");
+        curl_easy_setopt(req, CURLOPT_HTTPHEADER, headers);
+
+        /* Run the request. */
+        result = curl_easy_perform(req);
+        if(result != CURLE_OK){
+            //nbdkit_error("POST request to read chunk %d failed", chunkId);
+            //nbdkit_set_error(1);
+            return -1;
+        }
+        free(msg);
+
+        curl_easy_cleanup(req);
+
         init_done = 1;
     }
 
     /* Start a new ring. */
     OpenRing* ring = malloc(sizeof(OpenRing));
-    ring->ringId = currentRing++;
-
-    /* Send the request to start the ring. */
-    CURLcode result;
-    CURL* req = curl_easy_init();
-
-    curl_easy_setopt(req, CURLOPT_URL, startUrl);
-
-    /* Make our JSON packet. */
-    int msgSize = snprintf(NULL, 0, "{\"ring_id\": %llu, \"target\": \"%s\", \"chunk_num\": %d}", ring->ringId, target, BLOCK_COUNT);
-    char* msg = malloc(msgSize);
-    sprintf(msg, "{\"ring_id\": %llu, \"target\": \"%s\", \"chunk_num\": %d}", ring->ringId, target, BLOCK_COUNT);
-
-    curl_easy_setopt(req, CURLOPT_POSTFIELDS, msg);
-
-    /* Set the MIME type. */
-    struct curl_slist* headers = curl_slist_append(NULL, "Content-Type: application/json");
-    curl_easy_setopt(req, CURLOPT_HTTPHEADER, headers);
-
-    /* Run the request. */
-    result = curl_easy_perform(req);
-    if(result != CURLE_OK){
-        //nbdkit_error("POST request to read chunk %d failed", chunkId);
-        //nbdkit_set_error(1);
-        return -1;
-    }
-    free(msg);
-
-    curl_easy_cleanup(req);
+    ring->ringId = RING_ID;
 
     return ring;
 }
