@@ -61,7 +61,7 @@ static void* bm_open(int read_only){
         if(result != CURLE_OK){
             nbdkit_error("POST request to start ring failed");
             nbdkit_set_error(1);
-            return -1;
+            return NULL;
         }
         free(msg);
 
