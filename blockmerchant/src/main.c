@@ -59,8 +59,8 @@ static void* bm_open(int read_only){
         /* Run the request. */
         result = curl_easy_perform(req);
         if(result != CURLE_OK){
-            //nbdkit_error("POST request to read chunk %d failed", chunkId);
-            //nbdkit_set_error(1);
+            nbdkit_error("POST request to start ring failed");
+            nbdkit_set_error(1);
             return -1;
         }
         free(msg);
@@ -143,8 +143,8 @@ static int bm_pread(void *handle, void *buf, uint32_t count, uint64_t offset, ui
         /* Run the request. */
         result = curl_easy_perform(req);
         if(result != CURLE_OK){
-            //nbdkit_error("POST request to read chunk %d failed", chunkId);
-            //nbdkit_set_error(1);
+            nbdkit_error("POST request to read chunk %d failed", chunkId);
+            nbdkit_set_error(1);
             return -1;
         }
         free(msg);
@@ -231,8 +231,8 @@ static int bm_pwrite(void *handle, const void *buf, uint32_t count, uint64_t off
         /* Run the request. */
         result = curl_easy_perform(req);
         if(result != CURLE_OK){
-            //nbdkit_error("POST request to write chunk %d failed", chunkId);
-            //nbdkit_set_error(1);
+            nbdkit_error("POST request to write chunk %d failed", chunkId);
+            nbdkit_set_error(1);
             return -1;
         }
 

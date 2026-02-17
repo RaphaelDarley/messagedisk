@@ -1,5 +1,5 @@
 CURL_FLAGS := $(shell curl-config --cflags --libs)
-CXXFLAGS := -I nbdkit/include -I nbdkit/common/include -I nbdkit/common/allocators -I nbdkit/common/utils -fPIC -DPSS_STYLE=2
+CXXFLAGS := -I nbdkit/include -I nbdkit/common/include -I nbdkit/common/allocators -I nbdkit/common/utils -fPIC -DPSS_STYLE=2 -flat_namespace -undefined suppress
 
 #test:
 #	$(CC) src/test.c -o bin/blocktest -I include -L lib $(CXXFLAGS) $(CURL_FLAGS)
