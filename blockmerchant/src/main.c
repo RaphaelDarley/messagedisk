@@ -37,12 +37,20 @@ typedef struct OpenRing {
 
 /* Open a device handle. */
 static void* bm_open(int read_only){
+    /* Get the requested ring number. */
+    OpenRing* ring = malloc(sizeof(OpenRing));
+    char* expName = nbdkit_export_name();
+
+    if(strncmp(expName, "Ring", 4) != 0) ring->ringId = RING_ID;
+    else ring->ringId = atoll(expName + 4);
+
     /* To be completed. */
     if(init_done == 0){
-        if(ringIdStr == NULL){
+        /*if(ringIdStr == NULL){
             ringIdStr = malloc(snprintf(NULL, 0, "%d", RING_ID) + 1);
             sprintf(ringIdStr, "%d", RING_ID);
-        }
+        }*/
+
 
         CURLcode result = curl_global_init(CURL_GLOBAL_ALL);
         assert(result == 0);
@@ -53,9 +61,9 @@ static void* bm_open(int read_only){
         curl_easy_setopt(req, CURLOPT_URL, startUrl);
 
         /* Make our JSON packet. */
-        int msgSize = snprintf(NULL, 0, "{\"ring_id\": %s, \"target\": \"%s\", \"chunk_num\": %d}", ringIdStr, target, BLOCK_COUNT);
+        int msgSize = snprintf(NULL, 0, "{\"ring_id\": %llu, \"target\": \"%s\", \"chunk_num\": %d}", ring->ringId, target, BLOCK_COUNT);
         char* msg = malloc(msgSize + 1);
-        sprintf(msg, "{\"ring_id\": %s, \"target\": \"%s\", \"chunk_num\": %d}", ringIdStr, target, BLOCK_COUNT);
+        sprintf(msg, "{\"ring_id\": %llu, \"target\": \"%s\", \"chunk_num\": %d}", ring->ringId, target, BLOCK_COUNT);
 
         curl_easy_setopt(req, CURLOPT_POSTFIELDS, msg);
 
@@ -77,10 +85,6 @@ static void* bm_open(int read_only){
         init_done = 1;
     }
 
-    /* Start a new ring. */
-    OpenRing* ring = malloc(sizeof(OpenRing));
-    ring->ringId = RING_ID;
-
     return ring;
 }
  
@@ -92,7 +96,7 @@ static void bm_close(void* handle){
 
 /* Get command line parameters. */
 static void bm_config(char* key, char* value){
-    if(strcmp(key, "ring") == 0) ringIdStr = value;
+    //if(strcmp(key, "ring") == 0) ringIdStr = value;
 }
 
 /* Return the size of the block device. */
@@ -132,9 +136,9 @@ static int bm_pread(void *handle, void *buf, uint32_t count, uint64_t offset, ui
         curl_easy_setopt(req, CURLOPT_URL, readUrl);
 
         /* Make our JSON packet. */
-        int msgSize = snprintf(NULL, 0, "{\"ring_id\": %s, \"chunk_id\": %llu}", ringIdStr, chunkId);
+        int msgSize = snprintf(NULL, 0, "{\"ring_id\": %llu, \"chunk_id\": %llu}", ring->ringId, chunkId);
         char* msg = malloc(msgSize + 1);
-        sprintf(msg, "{\"ring_id\": %s, \"chunk_id\": %llu}", ringIdStr, chunkId);
+        sprintf(msg, "{\"ring_id\": %llu, \"chunk_id\": %llu}", ring->ringId, chunkId);
 
         curl_easy_setopt(req, CURLOPT_POSTFIELDS, msg);
 
@@ -179,9 +183,9 @@ static char* createWriteMsg(uint64_t ringId, uint64_t chunkId, char* block){
     char* currentStr = NULL;
     int currentSize = 0;
 
-    int msgSize = snprintf(NULL, 0, "{\"ring_id\": %s, \"chunk_id\": %llu, \"data\":[%hhu", ringIdStr, chunkId, block[0]) + 1;
+    int msgSize = snprintf(NULL, 0, "{\"ring_id\": %llu, \"chunk_id\": %llu, \"data\":[%hhu", ringId, chunkId, block[0]) + 1;
     char* msg = malloc(msgSize);
-    sprintf(msg, "{\"ring_id\": %s, \"chunk_id\": %llu, \"data\":[%hhu", ringIdStr, chunkId, block[0]);
+    sprintf(msg, "{\"ring_id\": %llu, \"chunk_id\": %llu, \"data\":[%hhu", ringId, chunkId, block[0]);
 
     currentStr = msg;
     currentSize = msgSize;
@@ -211,6 +215,8 @@ static char* createWriteMsg(uint64_t ringId, uint64_t chunkId, char* block){
 
 /* Write a block from a buffer.*/
 static int bm_pwrite(void *handle, const void *buf, uint32_t count, uint64_t offset, uint32_t flags){
+    OpenRing* ring = (OpenRing*) handle;
+
     uint64_t chunkId = offset / BLOCK_SIZE;
     uint64_t chunkOffset = offset % BLOCK_SIZE;
 
@@ -232,7 +238,7 @@ static int bm_pwrite(void *handle, const void *buf, uint32_t count, uint64_t off
         curl_easy_setopt(req, CURLOPT_URL, writeUrl);
 
         /* Make our JSON packet. */
-        char* msg = createWriteMsg(RING_ID, chunkId, block);
+        char* msg = createWriteMsg(ring->ringId, chunkId, block);
 
         curl_easy_setopt(req, CURLOPT_POSTFIELDS, msg);
 
@@ -264,6 +270,7 @@ static struct nbdkit_plugin plugin = {
     .name              = "MessageDiskClient",
     .open              = bm_open,
     .close             = bm_close,
+    .config            = bm_config,
     .get_size          = bm_get_size,
     .pread             = bm_pread,
     .pwrite            = bm_pwrite,
