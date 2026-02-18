@@ -29,6 +29,8 @@ int currentRing = 1;
 char* currentWriteTarget;
 int loc;
 
+char* ringIdStr = NULL;
+
 typedef struct OpenRing {
     uint64_t ringId;
 } OpenRing;
@@ -37,6 +39,11 @@ typedef struct OpenRing {
 static void* bm_open(int read_only){
     /* To be completed. */
     if(init_done == 0){
+        if(ringIdStr == NULL){
+            ringIdStr = malloc(snprintf(NULL, 0, "%d", RING_ID) + 1);
+            sprintf(ringIdStr, "%d", RING_ID);
+        }
+
         CURLcode result = curl_global_init(CURL_GLOBAL_ALL);
         assert(result == 0);
 
@@ -46,9 +53,9 @@ static void* bm_open(int read_only){
         curl_easy_setopt(req, CURLOPT_URL, startUrl);
 
         /* Make our JSON packet. */
-        int msgSize = snprintf(NULL, 0, "{\"ring_id\": %llu, \"target\": \"%s\", \"chunk_num\": %d}", (uint64_t)RING_ID, target, BLOCK_COUNT);
+        int msgSize = snprintf(NULL, 0, "{\"ring_id\": %s, \"target\": \"%s\", \"chunk_num\": %d}", ringIdStr, target, BLOCK_COUNT);
         char* msg = malloc(msgSize + 1);
-        sprintf(msg, "{\"ring_id\": %llu, \"target\": \"%s\", \"chunk_num\": %d}", (uint64_t)RING_ID, target, BLOCK_COUNT);
+        sprintf(msg, "{\"ring_id\": %s, \"target\": \"%s\", \"chunk_num\": %d}", ringIdStr, target, BLOCK_COUNT);
 
         curl_easy_setopt(req, CURLOPT_POSTFIELDS, msg);
 
@@ -80,6 +87,12 @@ static void* bm_open(int read_only){
 /* Close a device handle.*/
 static void bm_close(void* handle){
     /* To be completed. */
+    free(handle);
+}
+
+/* Get command line parameters. */
+static void bm_config(char* key, char* value){
+    if(strcmp(key, "ring") == 0) ringIdStr = value;
 }
 
 /* Return the size of the block device. */
@@ -119,9 +132,9 @@ static int bm_pread(void *handle, void *buf, uint32_t count, uint64_t offset, ui
         curl_easy_setopt(req, CURLOPT_URL, readUrl);
 
         /* Make our JSON packet. */
-        int msgSize = snprintf(NULL, 0, "{\"ring_id\": %d, \"chunk_id\": %llu}", ring->ringId, chunkId);
+        int msgSize = snprintf(NULL, 0, "{\"ring_id\": %s, \"chunk_id\": %llu}", ringIdStr, chunkId);
         char* msg = malloc(msgSize + 1);
-        sprintf(msg, "{\"ring_id\": %d, \"chunk_id\": %llu}", ring->ringId, chunkId);
+        sprintf(msg, "{\"ring_id\": %s, \"chunk_id\": %llu}", ringIdStr, chunkId);
 
         curl_easy_setopt(req, CURLOPT_POSTFIELDS, msg);
 
@@ -166,9 +179,9 @@ static char* createWriteMsg(uint64_t ringId, uint64_t chunkId, char* block){
     char* currentStr = NULL;
     int currentSize = 0;
 
-    int msgSize = snprintf(NULL, 0, "{\"ring_id\": %llu, \"chunk_id\": %llu, \"data\":[%hhu", ringId, chunkId, block[0]) + 1;
+    int msgSize = snprintf(NULL, 0, "{\"ring_id\": %s, \"chunk_id\": %llu, \"data\":[%hhu", ringIdStr, chunkId, block[0]) + 1;
     char* msg = malloc(msgSize);
-    sprintf(msg, "{\"ring_id\": %llu, \"chunk_id\": %llu, \"data\":[%hhu", ringId, chunkId, block[0]);
+    sprintf(msg, "{\"ring_id\": %s, \"chunk_id\": %llu, \"data\":[%hhu", ringIdStr, chunkId, block[0]);
 
     currentStr = msg;
     currentSize = msgSize;
