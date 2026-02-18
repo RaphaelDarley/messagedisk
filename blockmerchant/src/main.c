@@ -207,7 +207,7 @@ static int bm_pwrite(void *handle, const void *buf, uint32_t count, uint64_t off
     while(countRemaining > 0){
         /* Get the current block. */
         char block[BLOCK_SIZE];
-        bm_pread(NULL, block, BLOCK_SIZE, chunkId * BLOCK_SIZE, 0);
+        bm_pread(handle, block, BLOCK_SIZE, chunkId * BLOCK_SIZE, 0);
 
         int amountToCopy = (countRemaining > (BLOCK_SIZE - chunkOffset)) ? (BLOCK_SIZE - chunkOffset) : countRemaining;
         memcpy(block + chunkOffset, buf + currentPoint, amountToCopy);
