@@ -47,7 +47,7 @@ static void* bm_open(int read_only){
 
         /* Make our JSON packet. */
         int msgSize = snprintf(NULL, 0, "{\"ring_id\": %llu, \"target\": \"%s\", \"chunk_num\": %d}", (uint64_t)RING_ID, target, BLOCK_COUNT);
-        char* msg = malloc(msgSize);
+        char* msg = malloc(msgSize + 1);
         sprintf(msg, "{\"ring_id\": %llu, \"target\": \"%s\", \"chunk_num\": %d}", (uint64_t)RING_ID, target, BLOCK_COUNT);
 
         curl_easy_setopt(req, CURLOPT_POSTFIELDS, msg);
@@ -122,7 +122,6 @@ static int bm_pread(void *handle, void *buf, uint32_t count, uint64_t offset, ui
         int msgSize = snprintf(NULL, 0, "{\"ring_id\": %d, \"chunk_id\": %llu}", ring->ringId, chunkId);
         char* msg = malloc(msgSize + 1);
         sprintf(msg, "{\"ring_id\": %d, \"chunk_id\": %llu}", ring->ringId, chunkId);
-        msg[msgSize] = 0;
 
         curl_easy_setopt(req, CURLOPT_POSTFIELDS, msg);
 
@@ -167,7 +166,7 @@ static char* createWriteMsg(uint64_t ringId, uint64_t chunkId, char* block){
     char* currentStr = NULL;
     int currentSize = 0;
 
-    int msgSize = snprintf(NULL, 0, "{\"ring_id\": %llu, \"chunk_id\": %llu, \"data\":[%hhu", ringId, chunkId, block[0]);
+    int msgSize = snprintf(NULL, 0, "{\"ring_id\": %llu, \"chunk_id\": %llu, \"data\":[%hhu", ringId, chunkId, block[0]) + 1;
     char* msg = malloc(msgSize);
     sprintf(msg, "{\"ring_id\": %llu, \"chunk_id\": %llu, \"data\":[%hhu", ringId, chunkId, block[0]);
 
@@ -177,8 +176,8 @@ static char* createWriteMsg(uint64_t ringId, uint64_t chunkId, char* block){
     int i = 1;
     while(i < BLOCK_SIZE){
         int newMsgSize = currentSize + snprintf(NULL, 0, ",%hhu", block[i]);
-        char* newMsg = malloc(newMsgSize); memcpy(newMsg, currentStr, currentSize);
-        sprintf(newMsg + currentSize, ",%hhu", block[i]);
+        char* newMsg = malloc(newMsgSize); memcpy(newMsg, currentStr, currentSize - 1);
+        sprintf(newMsg + currentSize - 1, ",%hhu", block[i]);
 
         free(currentStr);
         currentStr = newMsg;
@@ -186,8 +185,8 @@ static char* createWriteMsg(uint64_t ringId, uint64_t chunkId, char* block){
         i++;
     }
 
-    int newMsgSize = currentSize + 3;
-    char* newMsg = malloc(newMsgSize); memcpy(newMsg, currentStr, currentSize);
+    int newMsgSize = currentSize + 2;
+    char* newMsg = malloc(newMsgSize); memcpy(newMsg, currentStr, currentSize - 1);
     newMsg[newMsgSize - 3] = ']'; newMsg[newMsgSize - 2] = '}'; newMsg[newMsgSize - 1] = 0;
 
     free(currentStr);
