@@ -94,11 +94,6 @@ static void bm_close(void* handle){
     free(handle);
 }
 
-/* Get command line parameters. */
-static void bm_config(char* key, char* value){
-    //if(strcmp(key, "ring") == 0) ringIdStr = value;
-}
-
 /* Return the size of the block device. */
 static int64_t bm_get_size(void* handle){
     return DEVICE_SIZE;
@@ -270,7 +265,6 @@ static struct nbdkit_plugin plugin = {
     .name              = "MessageDiskClient",
     .open              = bm_open,
     .close             = bm_close,
-    .config            = bm_config,
     .get_size          = bm_get_size,
     .pread             = bm_pread,
     .pwrite            = bm_pwrite,
