@@ -23,17 +23,43 @@ const char* writeUrl = "http://127.0.0.1:6767/write";
 const char* startUrl = "http://127.0.0.1:6767/start";
 const char* target = "127.0.0.1:6767";
 
-int init_done = 0;
-int currentRing = 1;
+/* Track started rings. */
 
-char* currentWriteTarget;
-int loc;
+typedef struct RingList {
+    uint64_t ringId;
+    int init_done;
+    struct RingList* next;
+} RingList;
 
-char* ringIdStr = NULL;
+RingList* initialised;
+
+/* Handles passed around. */
 
 typedef struct OpenRing {
     uint64_t ringId;
 } OpenRing;
+
+/* Check if a ring has been initialised in an entry. If not, add an
+   entry for it. */
+static RingList* check_and_add_init(uint64_t ringId){
+    RingList* current = initialised;
+
+    while(current != NULL){
+        if(current->ringId == ringId) return current;
+
+        if(current->next == NULL){
+            RingList* entry = malloc(sizeof(RingList));
+
+            entry->next = NULL;
+            entry->ringId = ringId;
+            entry->init_done = 0;
+
+            return entry;
+        }
+
+        current = current->next;
+    }
+}
 
 /* Open a device handle. */
 static void* bm_open(int read_only){
@@ -44,14 +70,10 @@ static void* bm_open(int read_only){
     if(strncmp(expName, "Ring", 4) != 0) ring->ringId = RING_ID;
     else ring->ringId = atoll(expName + 4);
 
+    RingList* initEntry = check_and_add_init(ring->ringId);
+
     /* To be completed. */
-    if(init_done == 0){
-        /*if(ringIdStr == NULL){
-            ringIdStr = malloc(snprintf(NULL, 0, "%d", RING_ID) + 1);
-            sprintf(ringIdStr, "%d", RING_ID);
-        }*/
-
-
+    if(initEntry->init_done == 0){
         CURLcode result = curl_global_init(CURL_GLOBAL_ALL);
         assert(result == 0);
 
@@ -82,7 +104,7 @@ static void* bm_open(int read_only){
 
         curl_easy_cleanup(req);
 
-        init_done = 1;
+        initEntry->init_done = 1;
     }
 
     return ring;
