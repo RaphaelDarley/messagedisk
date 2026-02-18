@@ -44,7 +44,16 @@ typedef struct OpenRing {
 static RingList* check_and_add_init(uint64_t ringId){
     RingList* current = initialised;
 
-    while(current != NULL){
+    if(current == NULL){
+        RingList* entry = malloc(sizeof(RingList));
+
+        entry->next = NULL;
+        entry->ringId = ringId;
+        entry->init_done = 0;
+
+        current = entry;
+        return entry;
+    } else while(current != NULL){
         if(current->ringId == ringId) return current;
 
         if(current->next == NULL){
@@ -54,6 +63,7 @@ static RingList* check_and_add_init(uint64_t ringId){
             entry->ringId = ringId;
             entry->init_done = 0;
 
+            current->next = entry;
             return entry;
         }
 
